@@ -1,0 +1,31 @@
+$end
+
+$rem
+method wb97m-v
+basis aug-cc-pvtz
+jobtype         sp
+purecart        1111
+xc_grid         000099000590
+nl_grid         1
+unrestricted    false
+incdft          0
+incfock         0
+max_scf_cycles  100
+scf_guess       sad
+scf_algorithm   diis
+scf_convergence 6
+thresh          11
+symmetry        false
+sym_ignore      true
+! WF analysis
+!WAVEFUNCTION_ANALYSIS true
+! Multipole charges
+MM_CHARGES     true
+!CHELPG charges
+!CHELPG          true
+! Calculate multipoles
+!MULTIPOLE_ORDER 4
+$end
+
+
+
