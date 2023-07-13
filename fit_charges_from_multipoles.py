@@ -31,6 +31,8 @@ def kronecker_delta(i: int, j: int) -> int:
         return 1
     return 0
 
+# This section of the code, containing the functions for computing the spherical harmonics multipole moments, is heavily inspired by Q-Chem's implementaiton. :)
+
 def lfuncp(l_min: int, l_max: int) -> int:
     if l_min <= l_max:
         return (l_max + 1)**2 - l_min**2
