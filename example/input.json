@@ -1,0 +1,9 @@
+{
+    "min_guess": [0.0, -1.00, -1.00, -1.00, -1.00, 0.00, 0.00],
+    "max_guess": [3.00, 0.00, 0.00, 0.00, 0.00, 1.00, 1.00],
+    "training_set": "config.xyz",
+    "add_stewart_constraints": true,
+    "maximum_multipole_order": 4,
+    "constraint_matrix": [[1, 1, 1, 1, 1, 1, 1], [0, 1, -1, 0, 0, 0, 0], [0, 0, 0, 1, -1, 0, 0], [0, 0, 0, 0, 0, 1, -1]],
+    "constraint_values": [-1.0, 0, 0, 0]
+}

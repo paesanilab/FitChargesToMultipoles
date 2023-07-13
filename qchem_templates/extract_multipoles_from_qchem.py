@@ -76,7 +76,7 @@ with open(sys.argv[1],'r') as ff:
       mp.append(p)
 
 
-mp_converted_eA = [[chg]]
+mp_converted_eA = [[chg * 0.2081943]]
 for i in range(1,len(mp)):
   mp_converted_eA.append([mp[i][j] * 0.2081943 for j in range(len(mp[i]))])
 
