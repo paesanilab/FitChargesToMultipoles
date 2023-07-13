@@ -305,7 +305,7 @@ def penalty_function(charges: Sequence[float], training_set: Sequence[Sequence[T
         # print("Reference Multipoles:", ref_multipoles)
 
         # Get the residual as a sum of squares of the differences in each multipole
-        for i in range(max_multipole_level):
+        for i in range(max_multipole_level + 1):
             # weight = 100/(i+1)**8
             # weight = 1 if i < 2 else 0
             weight = 1
@@ -471,7 +471,7 @@ def fit_multipoles(
     
     print(constraint_matrix)
     
-    result = optimize.minimize(penalty_function_wrapper, starting_charges, constraints=(linear_constraint,), tol=1e-5, callback=callback, args = {"training_set": training_set_configurations, "reference_multipoles": reference_multipoles, "max_multipole_level": max_multipole_level})
+    result = optimize.minimize(penalty_function_wrapper, starting_charges, constraints=(linear_constraint,), tol=1e-8, callback=callback, args = {"training_set": training_set_configurations, "reference_multipoles": reference_multipoles, "max_multipole_level": max_multipole_level})
 
     final_charges: Sequence[float] = result.x
     
