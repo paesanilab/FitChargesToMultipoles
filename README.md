@@ -70,5 +70,24 @@ We then convert this system of equations to the representation expected in the J
     "constraint_values": [-1.0, 0, 0, 0]
 ```
 
+### Stewart Charges
+
+If the JSON entry `add_stewart_constraints` is passed, then the charges will be fitted using the Stewart multipole derived charges (MDC) approach.
+
+This procedure is outlined in the following publication: https://www.tandfonline.com/doi/full/10.1080/00268970500187910
+And is implemented in the Q-Chem software with the MM_CHARGES arguement: https://manual.q-chem.com/latest/sec_ESP.html
+
+The overall idea of the algorithm is:
+Each linearly-independent multipole moment can be used to create an additional constraint. These constraints can be used to exactly reproduce the multipoles
+up to a certain multipole level (l).
+In the case where the number of degrees of freedom of the charges exactly corresponds to the number of linearly independent multipoles at a certain multipole level,
+then the multipoles up to that level are fit exactly. And higher-order multipoles are ignored.
+In the case where the number of degrees of freedom of the charges does not exactly correspond to the number of linearly independent multipoles at a certain multipole level (l), then all charges at the l-1 multipole level are fit exactly, and then the multipoles at the lth level are fit using some fitting algorithm.
+
+Overall this approach is very effective for obtaining charges that reproduce the multipoles, but they may not well-reproduce the electrostatic potential at short range.
+
+Also, I believe the Q-Chem implementation has a bug that prevents the correct multipole level from being used in the stewart fitting process for some systems. This code selects the
+correct Stewart fitting level.
+
 ### Example
 There is an example in the `example` folder, which fits the charges using the Stewart procedure for PO4H2-.
