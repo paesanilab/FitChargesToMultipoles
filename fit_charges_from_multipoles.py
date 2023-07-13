@@ -16,6 +16,17 @@ global N      # Max multipole to fit
 global REFMP  # List of lists with the reference multipoles
 
 def kronecker_delta(i: int, j: int) -> int:
+    """
+    Computes the Kronecker delta of i and j.
+    
+    Args:
+        i           - First input to the kronecker delta.
+        j           - Second input to the kronecker delta.
+        
+    Returns:
+        1 if i == j
+        otherwise, 0
+    """
     if i == j:
         return 1
     return 0
@@ -106,6 +117,19 @@ def ctopsh(l: int, m: int, lx: int, ly: int, lz: int) -> float:
         return 0
 
 def get_spherical_harmonics_multipoles(charges: Sequence[float], configuration: Sequence[Tuple[float, float, float]], max_multipole_level: int) -> Sequence[Sequence[float]]:
+    """
+    Computes the multipole moments of a configuration in the spherical harmonics representation based on atomic point-charges.
+    
+    Args:
+        charges             - The atomic point charges. One for each element of configuration.
+        configuration       - The xyz coordinate data of the configuration. (units of Angstroms)
+        max_multipole_level - Compute the multipoles up to this value of the quantum number l (inclusive).
+        
+    Returns:
+        The multipole moments in the spherical harmonics representation.
+        get_spherical_harmonics_multipoles(...)[l] will give you the multipole moments corresponding to the quantum number l. 
+    
+    """
     
     multipole_moments: MutableSequence[MutableSequence[float]] = [[0.0 for m in range(-l, l+1)] for l in range(0, max_multipole_level + 1)]
     
@@ -113,16 +137,9 @@ def get_spherical_harmonics_multipoles(charges: Sequence[float], configuration: 
     
     l: int
     for l in range(0, max_multipole_level + 1):
-    # for l in range(maximum_multipole_order, maximum_multipole_order + 1):
-        
-        # print(f"Angular Momentum QN (l): {l}\n")
-        
-        # l_multipole_moments: 
         
         m: int
         for m in range(-l, l+1):
-            
-            # print(f"Magnetic QN (m): {m}")
             
             # i is just used in the calculation of n
             i: int = lfuncp(0, l-1)
@@ -133,27 +150,22 @@ def get_spherical_harmonics_multipoles(charges: Sequence[float], configuration: 
             else:
                 multipole_index = i+2*m
             
-            # print(f"i: {i}")
-            # print(f"n: {n}")
-            
             for k in range(lfuncc(0, l-1)+1, lfuncc(0, l) + 1):
                 # print(f"k: {k}")
                 # This 'k' value might not be meaningful, and is just a key for konk2l?
                 lx, ly, lz = konk2l(k)
-                # print(f"(lx, ly, lz): ({lx}, {ly}, {lz})")
                 coeff = ctopsh(l, m, lx, ly, lz)
-                # print(f"coeff: {coeff}")
                 for j in range(0, len(charges)):
                     multipole_moments[l][multipole_index-offset-1] += coeff*charges[j] * (configuration[j][0]**lx) * (configuration[j][1]**ly) * (configuration[j][2]**lz)
-
-
-            # multipole_moments[l][n-offset-1] *= 4.803 # not sure why need 0.5 factor
-            # multipole_moments[n-1] *= 4.803 # not sure why need 0.5 factor
         offset += 2*l+1
     return multipole_moments
 
 def get_multipoles(chg: Sequence[float], xyz: Sequence[float], n: int) -> Sequence[Sequence[float]]:
     """
+    
+    NOTE: This function computes the traceless multipoles. This is distinct from the spherical harmonics multipoles, which are what is output by qchem.
+    This function is currently not used, but I keep it here in case one day we wish to fit the traceless modes.
+    
     Calculates the traceless multipoles for charges in chg with positions xyz
     
     Applies formula like that for the quadrupoles here:
@@ -285,31 +297,46 @@ def get_multipoles(chg: Sequence[float], xyz: Sequence[float], n: int) -> Sequen
       
 def penalty_function(charges: Sequence[float], training_set: Sequence[Sequence[Tuple[float, float, float]]], reference_multipoles: Sequence[Sequence[Sequence[float]]], max_multipole_level: int) -> float:
     """
-    Calculates the difference between calculated multipoles and reference multipoles
+    Calculates the sum of squared errors (SSE) between some reference multipoles and the calculated multipoles.
+    
+    Args:
+        charges                 - The atomic point-charges, should be one for each atom. (units of electronic charge)
+        training_set            - The training set to calcualte the SSE on. (units of Angstroms)
+        reference_multipoles    - The reference multipoles to compute the SSE relative to. (units of electronic charge / Angstrom^l)
+        max_multipole_level     - Compute the multipoles up to this quantum number l (inclusive)
+    
     Output:
-    - Sum of squared residuals
+        The sum-squared error of all the multipoles for all configuraitons in the training set.
     """
-    # For each configuration in the ts, calculate the error
+    
     residual: float = 0.0
-    # Weights are gonna be based on the multipole
     
     for n, (configuration, ref_multipoles) in enumerate(zip(training_set, reference_multipoles)):        
-        # Calculates the multipoles for the given charges
+        # Calculates the multipoles for the given configuration from the charges.
         mpcalc = get_spherical_harmonics_multipoles(charges, configuration, max_multipole_level)
 
-        # Get the residual as a sum of squares of the differences in each multipole
+        # Add this configuration's contribution to the residual.
         for i in range(max_multipole_level + 1):
-            # weight = 100/(i+1)**8
             weight = 1
             for j in range(len(mpcalc[i])):
                 residual += weight*(mpcalc[i][j] - ref_multipoles[i][j])*(mpcalc[i][j] - ref_multipoles[i][j])
-                #res += weight*((mpcalc[i][j] - REFMP[n][i][j]) / REFMP[n][i][j])*((mpcalc[i][j] - REFMP[n][i][j]) / REFMP[n][i][j])
-
-    # print("Residual:", residual)
 
     return residual
         
 def get_linearly_dependant_constraints(constraint_matrix: Sequence[Sequence[float]], zero_tolerance: float = 1e-3) -> Sequence[int]:
+    """
+    
+    Given a constraint matrix, it returns the indices of constraints that should be removed to produce a linearly independent matrix.
+    In other words, it gives the indices of the rows that are linearly dependent on rows above them.
+    
+    Args:
+        constraint_matrix           - The matrix of constraints, row-major.
+        zero_tolerance              - Threshold used by numpy.linalg.matrix_rank to determine if rows are linearly dependent.
+        
+    Returns:
+        list of indices of rows that should be removed to produce a linearly independent matrix.
+    
+    """
     
     linearly_dependent_row_indices: MutableSequence[int] = []
     
@@ -324,6 +351,17 @@ def get_linearly_dependant_constraints(constraint_matrix: Sequence[Sequence[floa
     return linearly_dependent_row_indices
 
 def is_vector_linearly_dependent(constraint_matrix: Sequence[Sequence[float]], vector: Sequence[float], zero_tolerance: float = 1e-3) -> bool:
+    """
+    Given a constraint matrix, and a vector, checks if the vector is linearly dependent with the rows of the constraint matrix.
+    
+    Args:
+        constraint_matrix           - The matrix of constraints, row-major.
+        vector                      - The vector whose linear dependence will be checked.
+        zero_tolerance              - Threshold used by numpy.linalg.matrix_rank to determine if rows are linearly dependent.
+
+    Returns:
+        True if vector is linearly dependent with the rows of constraint_matrix, False if vector is linearly independent.
+    """
     test_matrix: MutableSequence[Sequence[float]] = []
     test_matrix.extend(constraint_matrix)
     test_matrix.append(vector)
@@ -338,6 +376,41 @@ def get_stewart_constraints(
             constraint_maximums: Sequence[float],
             zero_tolerance: float = 1e-5
         ) -> Tuple[Sequence[Sequence[float]], Sequence[float], Sequence[float], int, int]:
+    """
+    Gets the input information required to perform a Stewart charge fitting.
+    
+    This function does not perform the Stewart fitting, but it computes some values that will be used as input
+    to the Stewart fitting procedure.
+    
+    Particularly, this function:
+        Determines what level should the Stewart constraints be applied to.
+        Determines what level should the multipoles be fit to.
+        Calculates the Stewart constraints.
+
+    
+    See the following publication:
+        https://www.tandfonline.com/doi/epdf/10.1080/00268970500187910?needAccess=true&role=button
+        
+    This procedure is implemented in Q-Chem via the MM_CHARGES command:
+        https://manual.q-chem.com/latest/sec_ESP.html
+        
+    Args:
+        configuration               - The xyz data to which the Stewart will be fit. (units of Angstroms)
+        reference_multipoles        - The multipoles that will be fit to, in the spherical harmonics representation. (units of electronic charge / Angstrom^l)
+        constraint_matrix           - The matrix of constraints for the charges, BEFORE the Stewart constraints are added.
+        constraint_minimums         - The vector of lower-bounds for each row of constraint_matrix. 
+        constraint_maximums         - The vector of upper-bounds for each row of constraint_matrix. 
+        zero_tolerance              - Threshold used to establish the lower and upper bounds of the Stewart constraints.
+        
+    Returns:
+        (stewart_constraint_matrix, stewart_constraint_minimums, stewart_constraint_maximums, stewart_constraint_level, stewart_fitting_level)
+        stewart_constraint_matrix   - The matrix of constraints that should be used during the charge fitting to produce the Stewart charges.
+        stewart_constraint_minimums - The lower-boudns for the constraints in each row of stewart_constraint_matrix
+        stewart_constraint_maximums - The upper-boudns for the constraints in each row of stewart_constraint_matrix
+        stewart_constraint_level    - Value of the quantum number l up to which all multipoles will be reproduced (nearly) exactly by the Stewart constraints.
+        stewart_fitting_level       - Value of the quantum number l up to which multipoles should be fit, in order to handle remaining degrees of freedom after Stewart constraints are applied.
+    
+    """
     
     l: int = 0
     
@@ -360,6 +433,7 @@ def get_stewart_constraints(
             test_constraint_matrix_row: MutableSequence[float] = [0.0 for _ in configuration]
             
             i: int = lfuncp(0, l-1)
+            
             # n is the index in the overall multipole moment array.
             multipole_index: int
             if m <= 0:
@@ -385,33 +459,16 @@ def get_stewart_constraints(
                 new_constraint_matrix.append(test_constraint_matrix_row)
                 new_constraint_minimums.append(test_constraint_minimum)
                 new_constraint_maximums.append(test_constraint_maximum)
-
-        # print(f"current constraints {constraint_matrix} {stewart_constraint_matrix}")
-        
-        # print(f"new candidate constraints: {new_constraint_matrix}, {new_constraint_minimums} {new_constraint_maximums}")
-        
-        # linearly_dependent_constraint_indices = get_linearly_dependant_constraints(test_constraint_matrix)
-        
-        # print(f"dependent constraints: {[linearly_dependent_constraint_index - len(constraint_matrix) - len(stewart_constraint_matrix) for linearly_dependent_constraint_index in linearly_dependent_constraint_indices]}")
-        
-        # problem: indices change as items are removed.
-        # for removed_items, linearly_dependent_constraint_index in enumerate(linearly_dependent_constraint_indices):
-        #     adjusted_index: int = linearly_dependent_constraint_index - len(constraint_matrix) - len(stewart_constraint_matrix) - removed_items
-        #     new_constraint_matrix.pop(adjusted_index)
-        #     new_constraint_minimums.pop(adjusted_index)
-        #     new_constraint_maximums.pop(adjusted_index)
             
         remaining_degrees_of_freedom -= len(new_constraint_matrix)
             
         if remaining_degrees_of_freedom >= 0:
-        # if remaining_degrees_of_freedom > 0:
             stewart_constraint_matrix.extend(new_constraint_matrix)
             stewart_constraint_minimums.extend(new_constraint_minimums)
             stewart_constraint_maximums.extend(new_constraint_maximums)
         if remaining_degrees_of_freedom == 0:
             return stewart_constraint_matrix, stewart_constraint_minimums, stewart_constraint_maximums, l, l
         if remaining_degrees_of_freedom < 0:
-        # if remaining_degrees_of_freedom <= 0:
             return stewart_constraint_matrix, stewart_constraint_minimums, stewart_constraint_maximums, l-1, l
         
         offset += 2*l+1
@@ -419,8 +476,22 @@ def get_stewart_constraints(
 
 def read_training_set(training_set_path: str) -> Tuple[Sequence[Sequence[Tuple[float, float, float]]], Sequence[Sequence[Sequence[float]]]]:
     """
-    Reads the training set: an xyz file with the multipoles on the comment line
-    Returns the number of atoms, the coordinates and the multipoles
+    Parses the training set from a file path.
+    
+    Training set must be in the .xyz file format.
+    The comment line must contain the multipoles in the following format:
+    [[charge], [dz, dx, dy], [qzz, qxz, qyz, qxx-yy, qxy], [ozzz, oxzz, oyzz, oxzz-yzz, oxyz, oxxx-xyy, oxxy-yyy], ...]
+    
+    (The same order output by the MM_CHARGES command in qchem)
+    
+    Args:
+        training_set_path       - Path to the .xyz training set with multipole data on comment line. (units of Angstroms for coordinates, units of electronic charge / Angstrom^l for multipoles)
+        
+    Returns:
+        (training_set_configurations, reference_multipoles)
+        training_set_configurations - The parsed .xyz data. (units of Angstroms)
+        reference_multipoles        - The reference multipole moments from the comment line. (units of electronic charge / Angstrom^l)
+    
     """
     xyz: MutableSequence[MutableSequence[Tuple[float, float, float]]] = []
     mp: MutableSequence[MutableSequence[Sequence[float]]] = []
@@ -449,6 +520,27 @@ def fit_multipoles(
             constraint_min: Sequence[float] = [],
             constraint_max: Sequence[float] = []
         ) -> Sequence[float]:
+    """
+    
+    Fits the atomic point-charges to reproduce some reference multipole moments.
+    
+    Will print the sum-squared error of the multipoles each iteration.
+    
+    Fitting is done using scipy.optimize.minimize(...).
+    
+    Args:
+        training_set_configurations     - xyz data of the training set. (units of Angstroms)
+        reference_multipoles            - reference multipoles to be fitted. Charges will try to reproduce these values. (units of electronic charge / Angstrom^l)
+        starting_charges                - charges will be initialized to these values. (units of electronic charge)
+        max_multipole_level             - fit only the multipoles up to this value of the quantum number l (inclusive)
+        constraint_matrix               - matrix of linear constraints to be applied to the produed charges. Each row is one constraint.
+        constraint_min                  - lower-bound of each constraint, should have equal number of elements as rows in constraint_matrix.
+        constraint_max                  - upper-bound of each constraint, should have equal number of elements as rows in constraint_matrix.
+        
+    Returns:
+        The fitted charges.
+    
+    """
     
     iteration_count: int = 0
     
@@ -570,6 +662,10 @@ maximum_fitting_multipole_order: int
 add_stewart_constraints: bool = "add_stewart_constraints" in json_data and json_data["add_stewart_constraints"]
 
 if add_stewart_constraints:
+    
+    if len(training_set_configurations) > 1:
+        print("Stewart charge fitting should only be used with a single configuration. Either set \"add_stewart_constraints\"=False, or set \"training_set\" to a training set with only a single configuraiton.")
+        sys.exit()
 
     if "maximum_multipole_order" in json_data:
         print("\"maximum_multipole_order\" is specified in json input but will be ignored in favor of Stewart-like maximum multipole order beacuse \"add_stewart_constraints\"=True is also specified")
