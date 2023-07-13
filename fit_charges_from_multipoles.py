@@ -323,6 +323,13 @@ def get_linearly_dependant_constraints(constraint_matrix: Sequence[Sequence[floa
     # return [row_index for row_index in range(len(constraint_matrix)) if row_index not in linearly_independent_row_indices]
     return linearly_dependent_row_indices
 
+def is_vector_linearly_dependent(constraint_matrix: Sequence[Sequence[float]], vector: Sequence[float], zero_tolerance: float = 1e-3) -> bool:
+    test_matrix: MutableSequence[Sequence[float]] = []
+    test_matrix.extend(constraint_matrix)
+    test_matrix.append(vector)
+    
+    return numpy.linalg.matrix_rank(test_matrix, tol=zero_tolerance) < len(test_matrix)
+
 def get_stewart_constraints(
             configuration: Sequence[Tuple[float, float, float]],
             reference_multipoles: Sequence[Sequence[float]],
@@ -344,11 +351,14 @@ def get_stewart_constraints(
     
     while True:
         
-        new_constraint_matrix: MutableSequence[MutableSequence[float]] = [[0.0 for _ in configuration] for m in range(-l, l+1)]
-        new_constraint_minimums: MutableSequence[float] = [0.0 for m in range(-l, l+1)]
-        new_constraint_maximums: MutableSequence[float] = [0.0 for m in range(-l, l+1)]
+        new_constraint_matrix: MutableSequence[MutableSequence[float]] = []
+        new_constraint_minimums: MutableSequence[float] = []
+        new_constraint_maximums: MutableSequence[float] = []
         
         for m, reference_multipole in zip(range(-l, l+1), reference_multipoles[l]):
+            
+            test_constraint_matrix_row: MutableSequence[float] = [0.0 for _ in configuration]
+            
             i: int = lfuncp(0, l-1)
             # n is the index in the overall multipole moment array.
             multipole_index: int
@@ -362,30 +372,34 @@ def get_stewart_constraints(
                 coeff = ctopsh(l, m, lx, ly, lz)
                 
                 for j in range(0, len(configuration)):
-                    new_constraint_matrix[multipole_index-offset-1][j] += coeff * (configuration[j][0]**lx) * (configuration[j][1]**ly) * (configuration[j][2]**lz)
+                    test_constraint_matrix_row[j] += coeff * (configuration[j][0]**lx) * (configuration[j][1]**ly) * (configuration[j][2]**lz)
             
-            new_constraint_minimums[multipole_index-offset-1] = reference_multipoles[l][multipole_index-offset-1] - zero_tolerance
-            new_constraint_maximums[multipole_index-offset-1] = reference_multipoles[l][multipole_index-offset-1] + zero_tolerance
+            test_constraint_minimum = reference_multipoles[l][multipole_index-offset-1] - zero_tolerance
+            test_constraint_maximum = reference_multipoles[l][multipole_index-offset-1] + zero_tolerance
             
-        test_constraint_matrix: MutableSequence[Sequence[float]] = []
-        test_constraint_matrix.extend(constraint_matrix)
-        test_constraint_matrix.extend(stewart_constraint_matrix)
-        test_constraint_matrix.extend(new_constraint_matrix)
+            test_constraint_matrix: MutableSequence[Sequence[float]] = []
+            test_constraint_matrix.extend(constraint_matrix)
+            test_constraint_matrix.extend(stewart_constraint_matrix)
+            
+            if not is_vector_linearly_dependent(test_constraint_matrix, test_constraint_matrix_row):
+                new_constraint_matrix.append(test_constraint_matrix_row)
+                new_constraint_minimums.append(test_constraint_minimum)
+                new_constraint_maximums.append(test_constraint_maximum)
 
         # print(f"current constraints {constraint_matrix} {stewart_constraint_matrix}")
         
         # print(f"new candidate constraints: {new_constraint_matrix}, {new_constraint_minimums} {new_constraint_maximums}")
         
-        linearly_dependent_constraint_indices = get_linearly_dependant_constraints(test_constraint_matrix)
+        # linearly_dependent_constraint_indices = get_linearly_dependant_constraints(test_constraint_matrix)
         
         # print(f"dependent constraints: {[linearly_dependent_constraint_index - len(constraint_matrix) - len(stewart_constraint_matrix) for linearly_dependent_constraint_index in linearly_dependent_constraint_indices]}")
         
         # problem: indices change as items are removed.
-        for removed_items, linearly_dependent_constraint_index in enumerate(linearly_dependent_constraint_indices):
-            adjusted_index: int = linearly_dependent_constraint_index - len(constraint_matrix) - len(stewart_constraint_matrix) - removed_items
-            new_constraint_matrix.pop(adjusted_index)
-            new_constraint_minimums.pop(adjusted_index)
-            new_constraint_maximums.pop(adjusted_index)
+        # for removed_items, linearly_dependent_constraint_index in enumerate(linearly_dependent_constraint_indices):
+        #     adjusted_index: int = linearly_dependent_constraint_index - len(constraint_matrix) - len(stewart_constraint_matrix) - removed_items
+        #     new_constraint_matrix.pop(adjusted_index)
+        #     new_constraint_minimums.pop(adjusted_index)
+        #     new_constraint_maximums.pop(adjusted_index)
             
         remaining_degrees_of_freedom -= len(new_constraint_matrix)
             
@@ -500,6 +514,8 @@ else:
     charges = [min + random.random()*(max-min) for min, max in zip(min_guess, max_guess)]
 print(f"Initial Charges: {charges}")
 
+print("")
+
 if "training_set" not in json_data:
     print("Please specify \"training_set\" in json file.")
     sys.exit()
@@ -508,6 +524,7 @@ print(f"Parsing training set from {json_data['training_set']}...")
 training_set_path = json_data['training_set']
 training_set_configurations, reference_multipoles = read_training_set(training_set_path)
 
+print("")
 
 # Check for consistency between charges and coordinates
 if len(charges) != len(training_set_configurations[0]):
@@ -516,6 +533,8 @@ if len(charges) != len(training_set_configurations[0]):
 
 print("Multipoles of initial charges:")
 print([[val for val in list] for list in get_spherical_harmonics_multipoles(charges, training_set_configurations[0], len(reference_multipoles[0]) - 1)])
+
+print("")
 
 # Parse Constraints
 constraint_matrix: MutableSequence[Sequence[float]]
@@ -537,6 +556,8 @@ else:
     constraint_minimums = []
     constraint_maximums = []
 
+print("")
+
 if len(get_linearly_dependant_constraints(constraint_matrix)) > 0:
     print(f"Initial constraint matrix contains linearly dependant constraints.")
     print(f"Matrix:")
@@ -546,12 +567,12 @@ if len(get_linearly_dependant_constraints(constraint_matrix)) > 0:
 
 maximum_fitting_multipole_order: int
 
-add_multipole_constraints: bool = "add_stewart_like_constraints" in json_data and json_data["add_stewart_like_constraints"]
+add_stewart_constraints: bool = "add_stewart_constraints" in json_data and json_data["add_stewart_constraints"]
 
-if add_multipole_constraints:
+if add_stewart_constraints:
 
     if "maximum_multipole_order" in json_data:
-        print("\"maximum_multipole_order\" is specified in json input but will be ignored in favor of Stewart-like maximum multipole order.")
+        print("\"maximum_multipole_order\" is specified in json input but will be ignored in favor of Stewart-like maximum multipole order beacuse \"add_stewart_constraints\"=True is also specified")
     
     stewart_constraint_matrix, stewart_constraint_minimums, stewart_constraint_maximums, stewart_constraint_level, maximum_fitting_multipole_order = get_stewart_constraints(
             training_set_configurations[0],
@@ -566,12 +587,16 @@ if add_multipole_constraints:
     constraint_matrix.extend(stewart_constraint_matrix)
     constraint_minimums.extend(stewart_constraint_minimums)
     constraint_maximums.extend(stewart_constraint_maximums)
+    
+    print(f"Because there are {len(training_set_configurations[0]) - len(constraint_matrix)} remaining degrees of freedom, the Stewart fitting level is L={maximum_fitting_multipole_order}")
 
 elif "maximum_multipole_order" not in json_data:
     print(f"Please specify either \"maximum_multipole_order\" or \"add_multipole_constraints\" = True in json input.")
     sys.exit()
 else:
     maximum_fitting_multipole_order = json_data["maximum_multipole_order"] 
+    
+print("")
 
 # Check consistency between reference multipoles and multipoles to calculate
 # Ref multiples must be at least same length as N
@@ -580,6 +605,8 @@ if maximum_fitting_multipole_order > len(reference_multipoles[0]):
     sys.exit()
 
 print(f"Will now fit multipoles up to L={maximum_fitting_multipole_order}")
+
+print("")
 
 final_charges: Sequence[float] = fit_multipoles(
         training_set_configurations,
@@ -593,7 +620,9 @@ final_charges: Sequence[float] = fit_multipoles(
 
 print(f"Fit Complete!")
 
-print("\n\nFitted charges:")
+print("")
+
+print("Fitted charges:")
 print([round(float(q),4) for q in final_charges])
 
 print("")
@@ -602,8 +631,10 @@ mp = get_spherical_harmonics_multipoles(final_charges, training_set_configuratio
 
 print("Multipoles of final charges.")
 print([[val for val in list] for list in mp])
+
+print("")
     
-print(f"Total penalty: {penalty_function(final_charges, training_set_configurations, reference_multipoles, max_multipole_level=maximum_fitting_multipole_order)}")
+print(f"Final penalty: {penalty_function(final_charges, training_set_configurations, reference_multipoles, max_multipole_level=maximum_fitting_multipole_order)}")
 
 # if len(constraints) != 3:
 #     print("No valid constraints have been found. Running optimization without constraints")
@@ -614,17 +645,9 @@ print(f"Total penalty: {penalty_function(final_charges, training_set_configurati
 
 # Report
 
-print("\n\nResiduals by moment:")
+print("")
+
+print("Residuals by moment:")
 
 for i in range(len(mp)):
     print("l = {}     ".format(i), [mp[i][j] - reference_multipoles[0][i][j] for j in range(len(mp[i]))])
-
-# print("\n\nMultipoles:\n")
-# for n in range(len(XYZ)):        
-#     # Calculates the multipoles for the given charges
-#     mpcalc = get_spherical_harmonics_multipoles(result.x,XYZ[n],N)
-
-#     print("Predicted:", mpcalc)
-#     print("Reference:", REFMP[n])
-
-print("\n\n")
