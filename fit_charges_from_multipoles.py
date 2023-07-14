@@ -3,7 +3,7 @@ import math
 import sys
 import ast
 import itertools
-from typing import Any, MutableSequence, Sequence, Tuple
+from typing import Any, MutableSequence, Optional, Sequence, Tuple
 import numpy
 import scipy.optimize as optimize
 from scipy.optimize import LinearConstraint
@@ -325,7 +325,7 @@ def penalty_function(charges: Sequence[float], training_set: Sequence[Sequence[T
 
     return residual
         
-def get_linearly_dependant_constraints(constraint_matrix: Sequence[Sequence[float]], zero_tolerance: float = 1e-3) -> Sequence[int]:
+def get_linearly_dependant_constraints(constraint_matrix: Sequence[Sequence[float]], augmentation: Optional[Sequence[float]] = None, zero_tolerance: float = 1e-3) -> Sequence[int]:
     """
     
     Given a constraint matrix, it returns the indices of constraints that should be removed to produce a linearly independent matrix.
@@ -333,6 +333,7 @@ def get_linearly_dependant_constraints(constraint_matrix: Sequence[Sequence[floa
     
     Args:
         constraint_matrix           - The matrix of constraints, row-major.
+        augmentation                - The vector to create the augmented matrix. If omitted, then analysis will be done on non-augmented matrix.
         zero_tolerance              - Threshold used by numpy.linalg.matrix_rank to determine if rows are linearly dependent.
         
     Returns:
@@ -343,7 +344,10 @@ def get_linearly_dependant_constraints(constraint_matrix: Sequence[Sequence[floa
     linearly_dependent_row_indices: MutableSequence[int] = []
     
     for test_index in range(0, len(constraint_matrix)):
-        test_matrix: Sequence[Sequence[float]] = [row for index, row in enumerate(constraint_matrix) if index <= test_index and index not in linearly_dependent_row_indices]
+        if augmentation is None:
+            test_matrix: Sequence[Sequence[float]] = [row for index, row in enumerate(constraint_matrix) if index <= test_index and index not in linearly_dependent_row_indices]
+        else:
+            test_matrix: Sequence[Sequence[float]] = [row + [augmentation[index]] for index, row in enumerate(constraint_matrix) if index <= test_index and index not in linearly_dependent_row_indices]
         
         if numpy.linalg.matrix_rank(test_matrix, tol=zero_tolerance) < len(test_matrix):
             linearly_dependent_row_indices.append(test_index)
@@ -426,13 +430,11 @@ def get_stewart_constraints(
     
     while True:
         
-        new_constraint_matrix: MutableSequence[MutableSequence[float]] = []
-        new_constraint_minimums: MutableSequence[float] = []
-        new_constraint_maximums: MutableSequence[float] = []
+        new_constraint_matrix: MutableSequence[MutableSequence[float]] = [[0.0 for _ in configuration] for m in range(-l, l+1)]
+        new_constraint_minimums: MutableSequence[float] = [0.0 for m in range(-l, l+1)]
+        new_constraint_maximums: MutableSequence[float] = [0.0 for m in range(-l, l+1)]
         
         for m, reference_multipole in zip(range(-l, l+1), reference_multipoles[l]):
-            
-            test_constraint_matrix_row: MutableSequence[float] = [0.0 for _ in configuration]
             
             i: int = lfuncp(0, l-1)
             
@@ -448,19 +450,35 @@ def get_stewart_constraints(
                 coeff = ctopsh(l, m, lx, ly, lz)
                 
                 for j in range(0, len(configuration)):
-                    test_constraint_matrix_row[j] += coeff * (configuration[j][0]**lx) * (configuration[j][1]**ly) * (configuration[j][2]**lz)
+                    new_constraint_matrix[multipole_index - offset - 1][j] += coeff * (configuration[j][0]**lx) * (configuration[j][1]**ly) * (configuration[j][2]**lz)
             
-            test_constraint_minimum = reference_multipoles[l][multipole_index-offset-1] - zero_tolerance
-            test_constraint_maximum = reference_multipoles[l][multipole_index-offset-1] + zero_tolerance
+            new_constraint_minimums[multipole_index - offset - 1] = reference_multipoles[l][multipole_index - offset - 1] - zero_tolerance
+            new_constraint_maximums[multipole_index - offset - 1] = reference_multipoles[l][multipole_index - offset - 1] + zero_tolerance
             
-            test_constraint_matrix: MutableSequence[Sequence[float]] = []
-            test_constraint_matrix.extend(constraint_matrix)
-            test_constraint_matrix.extend(stewart_constraint_matrix)
-            
-            if not is_vector_linearly_dependent(test_constraint_matrix, test_constraint_matrix_row):
-                new_constraint_matrix.append(test_constraint_matrix_row)
-                new_constraint_minimums.append(test_constraint_minimum)
-                new_constraint_maximums.append(test_constraint_maximum)
+        test_constraint_matrix: MutableSequence[Sequence[float]] = []
+        test_constraint_matrix.extend(constraint_matrix)
+        test_constraint_matrix.extend(stewart_constraint_matrix)
+        test_constraint_matrix.extend(new_constraint_matrix)
+        
+        test_augmentation: MutableSequence[float] = []
+        test_augmentation.extend([min/2 + max/2 for min, max in zip(constraint_minimums, constraint_maximums)])
+        test_augmentation.extend([min/2 + max/2 for min, max in zip(stewart_constraint_minimums, stewart_constraint_maximums)])
+        test_augmentation.extend([min/2 + max/2 for min, max in zip(new_constraint_minimums, new_constraint_maximums)])
+        
+        print(f"{l = }")
+        
+        linearly_dependent_constraint_indices: Sequence[int] = get_linearly_dependant_constraints(test_constraint_matrix, augmentation=test_augmentation)
+        
+        for counter, linearly_dependent_constraint_index in enumerate(linearly_dependent_constraint_indices[::-1]):
+            print(f"MEEP {linearly_dependent_constraint_index = }")
+            new_constraint_matrix.pop(linearly_dependent_constraint_index - len(constraint_matrix) - len(stewart_constraint_matrix))
+            new_constraint_minimums.pop(linearly_dependent_constraint_index - len(constraint_matrix) - len(stewart_constraint_matrix))
+            new_constraint_maximums.pop(linearly_dependent_constraint_index - len(constraint_matrix) - len(stewart_constraint_matrix))
+        
+        # if not is_vector_linearly_dependent(test_constraint_matrix, test_constraint_matrix_row):
+        #     new_constraint_matrix.append(test_constraint_matrix_row)
+        #     new_constraint_minimums.append(test_constraint_minimum)
+        #     new_constraint_maximums.append(test_constraint_maximum)
             
         remaining_degrees_of_freedom -= len(new_constraint_matrix)
             
@@ -638,8 +656,8 @@ if "constraint_matrix" in json_data and "constraint_values":
     print(f"Parsing constraints from json...")
 
     constraint_matrix = json_data["constraint_matrix"]
-    constraint_minimums = [value - 1e-6 for value in json_data["constraint_values"]]
-    constraint_maximums = [value + 1e-6 for value in json_data["constraint_values"]]
+    constraint_minimums = [value - 0.0 for value in json_data["constraint_values"]]
+    constraint_maximums = [value + 0.0 for value in json_data["constraint_values"]]
 elif ("constraint_matrix" in json_data and "constraint_values" not in json_data) or ("constraint_matrix" not in json_data and "constraint_values" in json_data):
     print(f"It looks like one of \"constraint_matrix\" or \"constraint_values\" was specified but not the other. They must both be specified to apply constraints.")
     sys.exit()
