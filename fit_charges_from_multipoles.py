@@ -470,7 +470,6 @@ def get_stewart_constraints(
         linearly_dependent_constraint_indices: Sequence[int] = get_linearly_dependant_constraints(test_constraint_matrix, augmentation=test_augmentation)
         
         for counter, linearly_dependent_constraint_index in enumerate(linearly_dependent_constraint_indices[::-1]):
-            print(f"MEEP {linearly_dependent_constraint_index = }")
             new_constraint_matrix.pop(linearly_dependent_constraint_index - len(constraint_matrix) - len(stewart_constraint_matrix))
             new_constraint_minimums.pop(linearly_dependent_constraint_index - len(constraint_matrix) - len(stewart_constraint_matrix))
             new_constraint_maximums.pop(linearly_dependent_constraint_index - len(constraint_matrix) - len(stewart_constraint_matrix))
