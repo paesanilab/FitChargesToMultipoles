@@ -15,21 +15,27 @@ The JSON file must contain the following entry:
 
 The JSON file must also contain either:
 - `maximum_multipole_order`: maximum multipole (inclusive) that will be fitted. It must be equal or less that the number of multipoles provided in `training_set`.
+
 or
+
 - `add_stewart_constraints`: if true, then the charges will be fit using the Stewart procedure.
 See more on this below.
 
 The JSON file must also contain either:
 - `charges`: list of the N charges that will be used as initial guess for the fitting procedure
+
 or
+
 - `min_guess`: minimum values for the N charges that will be used to create an initial guess
 - `max_guess`: maximum values for the N charges that will be used to create an inital guess.
+
 Random values in the range [min_guess, max_guess) will be chosen for each charge.
 Note that the charges are not constrained to these ranges during the fitting process.
 
 The JSON file may also contain:
 - `constraint_matrix`: Alongside `constraint_values` these define a system of linear equations that the final fitted charges must satisfy.
 - `constraint_values`: Alongside `constraint_matrix` these define a system of linear equations that the final fitted charges must satisfy.
+
 See more on this below.
 
 This is an example of JSON file (for fitting the charges of PO4H2- up to the hexadecupole level.):
