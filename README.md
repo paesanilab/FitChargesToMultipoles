@@ -98,11 +98,11 @@ In the case where the number of degrees of freedom of the charges exactly corres
 then the multipoles up to that level are fit exactly. And higher-order multipoles are ignored.
 In the case where the number of degrees of freedom of the charges does not exactly correspond to the number of linearly independent multipoles at a certain multipole level (l), then all multipoles at the l-1 multipole level are fit exactly, and then the multipoles at the lth level are fit using some fitting algorithm.
 
-The number of linearly independent multipoles can be determined by the symmetry of the molecule (Q-chem's strategy) or through some basic linear algebra (this software's strategy).
+The number of linearly independent multipoles at each multipole level can be determined by the symmetry of the molecule (Q-Chem's strategy) or through some basic linear algebra (this software's strategy).
 
 Overall this approach is very effective for obtaining charges that reproduce the multipoles, but they may not well-reproduce the electrostatic potential at short range.
 
-Also, I believe the Q-Chem implementation has a bug that prevents the correct multipole level from being used in the stewart fitting process for some systems. This code selects the
+Also, I believe the Q-Chem implementation has a bug that prevents the correct multipole level from being used in the Stewart fitting process for some systems. This code selects the
 correct Stewart fitting level.
 
 ### Example
