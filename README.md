@@ -54,17 +54,24 @@ This is an example of JSON file (for fitting the charges of PO4H2- up to the hex
 The `constraint_matrix` and `constraint_values` entries in the json file define a system of linear equations that the final fitted charges must satisfy.
 Generally, you should use these to force the total charge of the system to add up to the formal charge of the molecule, and force symemtrically-identical
 atoms to have the same charges.
+
 For example, in the molecule PO4H2-, there are 4 different 'classes' of atoms:
+
 - P
 - O not-bonded to H
 - O bonded to H
 - H
+
 We will define a system of linear equations that will force each pair of atoms within the same symmetry class to have the same charge:
 
 P    O(1)    O(2)    O(H)(1)    O(H)(2)    H(1)    H(2)    Value
+
 1    1       1       1          1          1       1      -1
+
 0    1      -1       0          0          0       0       0
+
 0    0       0       1         -1          0       0       0
+
 0    0       0       0          0          1      -1       0
 
 Here, the first row of the constraint matrix forces the total charge of the system to sum to -1, while the next three rows force
