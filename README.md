@@ -88,6 +88,7 @@ We then convert this system of equations to the representation expected in the J
 If the JSON entry `add_stewart_constraints` is passed, then the charges will be fitted using the Stewart multipole derived charges (MDC) approach.
 
 This procedure is outlined in the following publication: https://www.tandfonline.com/doi/full/10.1080/00268970500187910
+
 And is implemented in the Q-Chem software with the MM_CHARGES arguement: https://manual.q-chem.com/latest/sec_ESP.html
 
 The overall idea of the algorithm is:
@@ -95,7 +96,9 @@ Each linearly-independent multipole moment can be used to create an additional c
 up to a certain multipole level (l).
 In the case where the number of degrees of freedom of the charges exactly corresponds to the number of linearly independent multipoles at a certain multipole level,
 then the multipoles up to that level are fit exactly. And higher-order multipoles are ignored.
-In the case where the number of degrees of freedom of the charges does not exactly correspond to the number of linearly independent multipoles at a certain multipole level (l), then all charges at the l-1 multipole level are fit exactly, and then the multipoles at the lth level are fit using some fitting algorithm.
+In the case where the number of degrees of freedom of the charges does not exactly correspond to the number of linearly independent multipoles at a certain multipole level (l), then all multipoles at the l-1 multipole level are fit exactly, and then the multipoles at the lth level are fit using some fitting algorithm.
+
+The number of linearly independent multipoles can be determined by the symmetry of the molecule (Q-chem's strategy) or through some basic linear algebra (this software's strategy).
 
 Overall this approach is very effective for obtaining charges that reproduce the multipoles, but they may not well-reproduce the electrostatic potential at short range.
 
