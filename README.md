@@ -14,7 +14,7 @@ The JSON file must contain the following entry:
 - `training_set`: XYZ file containing the training set coordinates, with the reference multipoles in the comment line as `[[qtot],[px,py,pz],[Q1,Q2,Q3,Q4,Q5],[O1,O2,O3,O4...]]` where the order matches the one in QChem (see `extract_multipoles_from_qchem.py`).
 
 The JSON file must also contain either:
-- `naximum_multipole_order`: maximum multipole (inclusive) that will be fitted. It must be equal or less that the number of multipoles provided in `training_set`.
+- `maximum_multipole_order`: maximum multipole (inclusive) that will be fitted. It must be equal or less that the number of multipoles provided in `training_set`.
 or
 - `add_stewart_constraints`: if true, then the charges will be fit using the Stewart procedure.
 See more on this below.
