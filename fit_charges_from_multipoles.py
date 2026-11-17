@@ -385,7 +385,7 @@ def get_stewart_constraints(
             constraint_matrix: Sequence[Sequence[float]],
             constraint_minimums: Sequence[float],
             constraint_maximums: Sequence[float],
-            zero_tolerance: float = 1e-2
+            zero_tolerance: float = 1e-5
         ) -> Tuple[Sequence[Sequence[float]], Sequence[float], Sequence[float], int, int]:
     """
     Gets the input information required to perform a Stewart charge fitting.
@@ -427,6 +427,8 @@ def get_stewart_constraints(
     l: int = 1
     
     remaining_degrees_of_freedom: int = len(configuration) - len(constraint_matrix)
+
+    print("remaining DoF:", remaining_degrees_of_freedom)
     
     stewart_constraint_matrix: MutableSequence[Sequence[float]] = []
     stewart_constraint_minimums: MutableSequence[float] = []
@@ -474,7 +476,7 @@ def get_stewart_constraints(
         
         print(f"{l = }")
         
-        linearly_dependent_constraint_indices: Sequence[int] = get_linearly_dependant_constraints(test_constraint_matrix, augmentation=test_augmentation, zero_tolerance=1e-6)
+        linearly_dependent_constraint_indices: Sequence[int] = get_linearly_dependant_constraints(test_constraint_matrix, augmentation=test_augmentation, zero_tolerance=1e-1)
         
         for counter, linearly_dependent_constraint_index in enumerate(linearly_dependent_constraint_indices[::-1]):
             new_constraint_matrix.pop(linearly_dependent_constraint_index - len(constraint_matrix) - len(stewart_constraint_matrix))
@@ -493,9 +495,13 @@ def get_stewart_constraints(
             stewart_constraint_matrix.extend(new_constraint_matrix)
             stewart_constraint_minimums.extend(new_constraint_minimums)
             stewart_constraint_maximums.extend(new_constraint_maximums)
+
         if remaining_degrees_of_freedom == 0:
+            print(f"exact stewart constraints achieved at l={l}")
             return stewart_constraint_matrix, stewart_constraint_minimums, stewart_constraint_maximums, l, l
+        
         if remaining_degrees_of_freedom < 0:
+            print(f"inexact stewart constraints achieved at l={l-1}, l'={l}")
             return stewart_constraint_matrix, stewart_constraint_minimums, stewart_constraint_maximums, l-1, l
         
         offset += 2*l+1
@@ -715,7 +721,7 @@ if __name__ == "__main__":
                 constraint_matrix,
                 constraint_minimums,
                 constraint_maximums,
-                zero_tolerance=1e-2
+                zero_tolerance=1e-5
         )
 
         print(f"Adding {len(stewart_constraint_matrix)} additional Stewart constraints using multipoles up to L={stewart_constraint_level}")
